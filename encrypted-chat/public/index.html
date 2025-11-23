@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <title>QuantumLink – Encrypted Network SMS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Socket.io -->
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, sans-serif; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at top, #2bffb1 0, transparent 55%),
+                  radial-gradient(circle at bottom, #00aaff 0, #050511 65%);
+      color: #e5f5ff;
+      overflow: hidden;
+    }
+
+    .glow-orbit {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: conic-gradient(from 180deg,
+                rgba(0,255,255,0.04),
+                rgba(0,0,0,0),
+                rgba(255,0,255,0.1),
+                rgba(0,0,0,0));
+      mix-blend-mode: screen;
+      animation: spin 30s linear infinite;
+      opacity: 0.7;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .shell {
+      position: relative;
+      width: min(1100px, 100vw - 2rem);
+      height: min(650px, 100vh - 2rem);
+      border-radius: 24px;
+      background: radial-gradient(circle at top, rgba(0,255,255,0.15), transparent 55%),
+                  rgba(5,8,28,0.96);
+      border: 1px solid rgba(0,255,255,0.2);
+      box-shadow: 0 0 60px rgba(0,255,255,0.16);
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      overflow: hidden;
+      backdrop-filter: blur(22px);
+    }
+
+    .left-panel {
+      border-right: 1px solid rgba(0,255,255,0.16);
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      background: linear-gradient(180deg, rgba(7,11,37,0.9), rgba(4,7,22,0.96));
+      position: relative;
+    }
+
+    .branding {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .logo-orbit {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,255,255,0.3);
+      display: grid;
+      place-items: center;
+      box-shadow: 0 0 18px rgba(0,255,255,0.5);
+    }
+    .logo-orbit span {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #00ffff, #0077ff);
+    }
+
+    .app-title {
+      font-size: 1.1rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .app-sub {
+      font-size: 0.7rem;
+      opacity: 0.7;
+    }
+
+    .glass-card {
+      border-radius: 16px;
+      border: 1px solid rgba(0,255,255,0.22);
+      background: radial-gradient(circle at top left, rgba(0,255,255,0.12), transparent 50%),
+                  rgba(6,11,38,0.9);
+      padding: 0.9rem;
+      box-shadow: 0 0 18px rgba(0,255,255,0.12);
+    }
+
+    .auth-tabs {
+      display: flex;
+      justify-content: space-between;
+      border-radius: 999px;
+      border: 1px solid rgba(0,255,255,0.35);
+      padding: 3px;
+      margin-bottom: 0.6rem;
+    }
+    .auth-tab {
+      flex: 1;
+      text-align: center;
+      padding: 0.35rem 0.5rem;
+      font-size: 0.75rem;
+      cursor: pointer;
+      border-radius: 999px;
+      opacity: 0.7;
+      user-select: none;
+    }
+    .auth-tab.active {
+      background: linear-gradient(90deg, #00ffc6, #008cff);
+      color: #020510;
+      opacity: 1;
+      font-weight: 600;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      margin-bottom: 0.5rem;
+    }
+    .field label {
+      font-size: 0.7rem;
+      opacity: 0.8;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .field input {
+      padding: 0.55rem 0.65rem;
+      border-radius: 999px;
+      border: 1px solid rgba(0,255,255,0.35);
+      background: radial-gradient(circle at top left, rgba(0,255,255,0.08), rgba(3,6,22,0.9));
+      color: #e5f5ff;
+      font-size: 0.8rem;
+      outline: none;
+    }
+    .field input::placeholder {
+      color: rgba(200,230,255,0.38);
+    }
+
+    button.primary {
+      margin-top: 0.3rem;
+      width: 100%;
+      padding: 0.55rem 0.75rem;
+      border-radius: 999px;
+      border: none;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      background: linear-gradient(90deg, #00ffc6, #008cff);
+      color: #020510;
+      cursor: pointer;
+      box-shadow: 0 0 22px rgba(0,255,255,0.55);
+    }
+
+    .status-text {
+      margin-top: 0.3rem;
+      font-size: 0.7rem;
+      min-height: 1em;
+      color: #7cf9ff;
+    }
+
+    .friend-card {
+      margin-top: 0.8rem;
+      font-size: 0.75rem;
+      line-height: 1.4;
+      opacity: 0.85;
+    }
+
+    .friend-code {
+      font-family: "SF Mono", ui-monospace, monospace;
+      font-size: 0.9rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      border: 1px dashed rgba(0,255,255,0.6);
+      display: inline-block;
+      margin-top: 0.2rem;
+    }
+
+    .legal {
+      margin-top: auto;
+      font-size: 0.63rem;
+      opacity: 0.7;
+      line-height: 1.25;
+    }
+
+    .chat-panel {
+      position: relative;
+      padding: 1rem 1.2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+    }
+
+    .chat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .chat-header-title {
+      font-size: 0.9rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      opacity: 0.9;
+    }
+    .current-user {
+      font-size: 0.75rem;
+      opacity: 0.8;
+    }
+
+    .messages {
+      flex: 1;
+      border-radius: 16px;
+      border: 1px solid rgba(0,255,255,0.18);
+      background: radial-gradient(circle at top, rgba(0,255,255,0.1), transparent 55%),
+                  rgba(4,8,31,0.94);
+      padding: 0.8rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      font-size: 0.8rem;
+    }
+
+    .msg {
+      max-width: 70%;
+      padding: 0.45rem 0.6rem;
+      border-radius: 14px;
+      line-height: 1.4;
+      position: relative;
+      word-wrap: break-word;
+      backdrop-filter: blur(10px);
+    }
+
+    .msg.me {
+      margin-left: auto;
+      background: linear-gradient(135deg, rgba(0,255,200,0.6), rgba(0,140,255,0.7));
+      color: #020510;
+      border-bottom-right-radius: 4px;
+    }
+    .msg.them {
+      margin-right: auto;
+      background: rgba(5,10,32,0.95);
+      border: 1px solid rgba(0,255,255,0.25);
+      border-bottom-left-radius: 4px;
+    }
+    .msg-meta {
+      font-size: 0.65rem;
+      opacity: 0.7;
+      margin-top: 0.15rem;
+    }
+
+    .composer {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 0.2rem;
+    }
+    .composer input[type="text"] {
+      flex: 1;
+      padding: 0.55rem 0.7rem;
+      border-radius: 999px;
+      border: 1px solid rgba(0,255,255,0.3);
+      background: radial-gradient(circle at top left, rgba(0,255,255,0.08), rgba(3,6,22,0.9));
+      color: #e5f5ff;
+      font-size: 0.8rem;
+      outline: none;
+    }
+    .icon-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      border: 1px solid rgba(0,255,255,0.4);
+      background: radial-gradient(circle at center, rgba(0,255,255,0.18), rgba(2,8,26,0.98));
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    /* Hidden admin trigger input */
+    .admin-trigger {
+      position: absolute;
+      bottom: 8px;
+      right: 10px;
+      font-size: 0.55rem;
+      opacity: 0.1;
+      border: none;
+      background: transparent;
+      color: transparent;
+      width: 80px;
+      height: 14px;
+      cursor: default;
+    }
+
+    .admin-panel {
+      position: absolute;
+      inset: 0.8rem;
+      border-radius: 18px;
+      border: 1px solid rgba(255,0,120,0.85);
+      background: radial-gradient(circle at top right, rgba(255,0,150,0.21), rgba(2,0,12,0.96));
+      box-shadow: 0 0 30px rgba(255,0,150,0.6);
+      padding: 0.9rem;
+      display: none;
+      flex-direction: column;
+      gap: 0.5rem;
+      z-index: 30;
+    }
+
+    .admin-panel.visible {
+      display: flex;
+    }
+
+    .admin-title {
+      font-size: 0.9rem;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: #ffdde8;
+    }
+    .admin-log {
+      flex: 1;
+      overflow-y: auto;
+      border-radius: 12px;
+      border: 1px solid rgba(255,80,180,0.6);
+      padding: 0.6rem;
+      font-size: 0.75rem;
+      background: rgba(12,0,28,0.93);
+    }
+    .admin-msg {
+      margin-bottom: 0.4rem;
+      padding-bottom: 0.2rem;
+      border-bottom: 1px dashed rgba(255,150,220,0.3);
+    }
+    .admin-login-row {
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+      margin-top: 0.2rem;
+    }
+    .admin-login-row input {
+      flex: 1;
+      padding: 0.4rem 0.6rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255,90,190,0.75);
+      background: rgba(12,0,28,0.92);
+      color: #ffdff7;
+      font-size: 0.75rem;
+    }
+    .admin-login-row button {
+      padding: 0.4rem 0.7rem;
+      border-radius: 999px;
+      border: none;
+      font-size: 0.75rem;
+      background: linear-gradient(90deg, #ff5bd8, #ffb948);
+      color: #180016;
+      cursor: pointer;
+    }
+
+    @media (max-width: 900px) {
+      .shell {
+        grid-template-columns: 1fr;
+        height: 100vh;
+        width: 100vw;
+        border-radius: 0;
+      }
+      .left-panel {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="glow-orbit"></div>
+
+<div class="shell">
+  <!-- LEFT: Auth + friend code -->
+  <div class="left-panel">
+    <div class="branding">
+      <div class="logo-orbit"><span></span></div>
+      <div>
+        <div class="app-title">QuantumLink</div>
+        <div class="app-sub">Personal Encrypted Network SMS</div>
+      </div>
+    </div>
+
+    <div class="glass-card">
+      <div class="auth-tabs">
+        <div class="auth-tab active" id="tab-login">Login</div>
+        <div class="auth-tab" id="tab-register">Register</div>
+      </div>
+
+      <div id="auth-login">
+        <div class="field">
+          <label>Username</label>
+          <input type="text" id="login-username" placeholder="e.g. nova_hacker" />
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="login-password" placeholder="••••••••" />
+        </div>
+        <button class="primary" id="login-btn">Enter Network</button>
+      </div>
+
+      <div id="auth-register" style="display:none;">
+        <div class="field">
+          <label>New Username</label>
+          <input type="text" id="reg-username" placeholder="choose a unique ID" />
+        </div>
+        <div class="field">
+          <label>Create Password</label>
+          <input type="password" id="reg-password" placeholder="create a strong key" />
+        </div>
+        <button class="primary" id="register-btn">Create Node</button>
+      </div>
+
+      <div class="status-text" id="auth-status"></div>
+
+      <div class="friend-card" id="friend-card" style="display:none;">
+        <div>Your Quantum Friend Code</div>
+        <div class="friend-code" id="friend-code"></div>
+        <div style="margin-top:0.4rem;">
+          Share your <strong>username + code</strong> only with people you trust.
+        </div>
+      </div>
+    </div>
+
+    <div class="glass-card" style="margin-top:0.6rem;">
+      <div class="field">
+        <label>Find Friend</label>
+        <input type="text" id="friend-username" placeholder="friend username" />
+      </div>
+      <div class="field">
+        <label>Verification Code</label>
+        <input type="text" id="friend-code-input" placeholder="6-digit friend code" />
+      </div>
+      <button class="primary" id="find-friend-btn">Link Node</button>
+      <div class="status-text" id="friend-status"></div>
+    </div>
+
+    <div class="legal">
+      <strong>Security Notice (example text):</strong><br/>
+      – Messages are transmitted through our secure relay server in real time.<br/>
+      – We do not store your chats permanently on any cloud database.<br/>
+      – <em>If</em> end-to-end encryption is enabled in your build, neither developers nor admins can read your content.<br/>
+      – If you enable an admin monitoring mode, update this text honestly to reflect that.
+    </div>
+  </div>
+
+  <!-- RIGHT: Chat + Hidden Admin -->
+  <div class="chat-panel">
+    <div class="chat-header">
+      <div>
+        <div class="chat-header-title">Private Quantum Channel</div>
+        <div style="font-size:0.7rem; opacity:0.75;">Connect via username + friend code. No public rooms.</div>
+      </div>
+      <div class="current-user" id="current-user">Not logged in</div>
+    </div>
+
+    <div class="messages" id="messages"></div>
+
+    <div class="composer">
+      <div class="icon-btn" id="emoji-btn">😊</div>
+      <div class="icon-btn" id="attach-btn">📎</div>
+      <input type="text" id="message-input" placeholder="Type an encrypted pulse..." />
+      <div class="icon-btn" id="send-btn">➤</div>
+    </div>
+
+    <!-- Hidden admin trigger region -->
+    <input
+      type="text"
+      class="admin-trigger"
+      id="admin-trigger"
+      autocomplete="off"
+      spellcheck="false"
+    />
+
+    <!-- Admin panel overlay -->
+    <div class="admin-panel" id="admin-panel">
+      <div class="admin-title">ADMIN NEBULA CORE</div>
+      <div style="font-size:0.7rem; opacity:0.8; margin-bottom:0.3rem;">
+        Real-time mirror of all relayed traffic (demo). Do not use this mode without
+        clearly informing users in your privacy policy.
+      </div>
+      <div class="admin-log" id="admin-log"></div>
+      <div class="admin-login-row">
+        <input type="password" id="admin-code-input" placeholder="Admin secret code" />
+        <button id="admin-login-btn">Inject</button>
+      </div>
+      <div class="status-text" id="admin-status"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const socket = io();
+
+  let currentUser = null;
+  let currentFriend = null;
+
+  const tabLogin = document.getElementById("tab-login");
+  const tabRegister = document.getElementById("tab-register");
+  const authLogin = document.getElementById("auth-login");
+  const authRegister = document.getElementById("auth-register");
+  const authStatus = document.getElementById("auth-status");
+  const friendCard = document.getElementById("friend-card");
+  const friendCodeEl = document.getElementById("friend-code");
+  const currentUserEl = document.getElementById("current-user");
+  const messagesEl = document.getElementById("messages");
+
+  tabLogin.onclick = () => {
+    tabLogin.classList.add("active");
+    tabRegister.classList.remove("active");
+    authLogin.style.display = "block";
+    authRegister.style.display = "none";
+    authStatus.textContent = "";
+  };
+  tabRegister.onclick = () => {
+    tabRegister.classList.add("active");
+    tabLogin.classList.remove("active");
+    authRegister.style.display = "block";
+    authLogin.style.display = "none";
+    authStatus.textContent = "";
+  };
+
+  document.getElementById("register-btn").onclick = () => {
+    const username = document.getElementById("reg-username").value.trim();
+    const password = document.getElementById("reg-password").value.trim();
+    socket.emit("register", { username, password });
+  };
+
+  socket.on("registerResult", (res) => {
+    if (!res.ok) {
+      authStatus.textContent = res.error || "Registration failed.";
+      return;
+    }
+    authStatus.textContent = "Node created. You can now log in.";
+  });
+
+  document.getElementById("login-btn").onclick = () => {
+    const username = document.getElementById("login-username").value.trim();
+    const password = document.getElementById("login-password").value.trim();
+    socket.emit("login", { username, password });
+  };
+
+  socket.on("loginResult", (res) => {
+    if (!res.ok) {
+      authStatus.textContent = res.error || "Login failed.";
+      return;
+    }
+    currentUser = res.username;
+    currentUserEl.textContent = "Logged in as @" + currentUser;
+    friendCard.style.display = "block";
+    friendCodeEl.textContent = res.friendCode;
+    authStatus.textContent = "Secure session established.";
+  });
+
+  document.getElementById("find-friend-btn").onclick = () => {
+    const username = document.getElementById("friend-username").value.trim();
+    const code = document.getElementById("friend-code-input").value.trim();
+    socket.emit("findFriend", { username, friendCode: code });
+  };
+
+  socket.on("findFriendResult", (res) => {
+    const status = document.getElementById("friend-status");
+    if (!res.ok) {
+      status.textContent = res.error || "Friend not found.";
+      currentFriend = null;
+      return;
+    }
+    currentFriend = res.username;
+    status.textContent = `Linked to @${currentFriend} — ${res.online ? "online" : "offline"}`;
+  });
+
+  document.getElementById("send-btn").onclick = sendMessage;
+  document.getElementById("message-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") sendMessage();
+  });
+
+  function sendMessage() {
+    const input = document.getElementById("message-input");
+    const text = input.value.trim();
+    if (!text) return;
+    if (!currentUser) {
+      alert("Please log in first.");
+      return;
+    }
+    if (!currentFriend) {
+      alert("Link a friend first.");
+      return;
+    }
+
+    // TODO (for real E2EE): encrypt text here with Web Crypto
+    const payload = {
+      toUsername: currentFriend,
+      content: text,
+      meta: { type: "text" },
+    };
+    socket.emit("sendMessage", payload);
+    input.value = "";
+  }
+
+  socket.on("message", (msg) => {
+    const bubble = document.createElement("div");
+    bubble.className = "msg " + (msg.from === currentUser ? "me" : "them");
+    bubble.innerHTML = `
+      <div>${escapeHtml(msg.content)}</div>
+      <div class="msg-meta">${msg.from} • ${new Date(msg.timestamp).toLocaleTimeString()}</div>
+    `;
+    messagesEl.appendChild(bubble);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  });
+
+  socket.on("messageError", (err) => {
+    alert("Message error: " + err);
+  });
+
+  function escapeHtml(text) {
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  // --- Hidden admin panel trigger ---
+  const adminTrigger = document.getElementById("admin-trigger");
+  const adminPanel = document.getElementById("admin-panel");
+  const adminLog = document.getElementById("admin-log");
+  const adminStatus = document.getElementById("admin-status");
+
+  let magicBuffer = "";
+
+  adminTrigger.addEventListener("input", (e) => {
+    magicBuffer += e.data || "";
+    if (magicBuffer.length > 12) {
+      magicBuffer = magicBuffer.slice(-12);
+    }
+    // Example magic phrase to open admin overlay
+    if (magicBuffer.toLowerCase().includes("openadmin")) {
+      adminPanel.classList.add("visible");
+      magicBuffer = "";
+      adminTrigger.value = "";
+    }
+  });
+
+  document.getElementById("admin-login-btn").onclick = () => {
+    const code = document.getElementById("admin-code-input").value.trim();
+    socket.emit("adminLogin", { code });
+  };
+
+  socket.on("adminLoginResult", (res) => {
+    if (!res.ok) {
+      adminStatus.textContent = res.error || "Admin auth failed.";
+    } else {
+      adminStatus.textContent = "Admin online. Mirroring traffic.";
+    }
+  });
+
+  socket.on("adminMessage", (msg) => {
+    const div = document.createElement("div");
+    div.className = "admin-msg";
+    div.innerHTML = `
+      <div><strong>${msg.from}</strong> ➜ <strong>${msg.to}</strong></div>
+      <div>${escapeHtml(msg.content)}</div>
+      <div style="font-size:0.65rem; opacity:0.7;">${new Date(msg.timestamp).toLocaleString()}</div>
+    `;
+    adminLog.appendChild(div);
+    adminLog.scrollTop = adminLog.scrollHeight;
+  });
+</script>
+</body>
+</html>
