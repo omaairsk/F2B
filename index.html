@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEURAL LINK // P2P SYSTEM</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- PeerJS for WebRTC -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    
+    <!-- Three.js for 3D Background -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&display=swap');
+
+        body {
+            background-color: #000;
+            color: #0f0;
+            font-family: 'Share Tech Mono', monospace;
+            overflow: hidden; /* Prevent body scroll, handle in app */
+            touch-action: manipulation;
+        }
+
+        .sci-fi-border {
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.1);
+            backdrop-filter: blur(4px);
+            background: rgba(0, 10, 0, 0.85);
+        }
+
+        .sci-fi-input {
+            background: rgba(0, 20, 0, 0.9);
+            border: 1px solid #00ff41;
+            color: #00ff41;
+            font-family: 'Share Tech Mono', monospace;
+        }
+        .sci-fi-input:focus {
+            outline: none;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
+        }
+
+        .sci-fi-btn {
+            background: linear-gradient(180deg, rgba(0,40,0,1) 0%, rgba(0,20,0,1) 100%);
+            border: 1px solid #00ff41;
+            color: #00ff41;
+            text-transform: uppercase;
+            transition: all 0.2s;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sci-fi-btn:hover {
+            background: #00ff41;
+            color: #000;
+            box-shadow: 0 0 20px #00ff41;
+        }
+        .sci-fi-btn:active {
+            transform: scale(0.95);
+        }
+        .sci-fi-btn:disabled {
+            border-color: #333;
+            color: #333;
+            background: #000;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .recording-pulse {
+            animation: pulse-red 1s infinite;
+            background: #400000;
+            border-color: #ff0000;
+            color: #ff0000;
+        }
+        
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 0, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
+        }
+
+        .scan-line {
+            width: 100%;
+            height: 2px;
+            background: rgba(0, 255, 65, 0.5);
+            position: absolute;
+            z-index: 10;
+            animation: scan 4s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes scan {
+            0% { top: 0%; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+
+        .message-bubble {
+            max-width: 90%; /* Wider on mobile */
+            word-wrap: break-word;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @media (min-width: 768px) {
+            .message-bubble { max-width: 75%; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #001100; }
+        ::-webkit-scrollbar-thumb { background: #004400; border: 1px solid #00ff41; }
+
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+        
+        .tab-active {
+            background: #00ff41;
+            color: #000;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="bg-canvas"></canvas>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- 3D Background Component ---
+        const ThreeBackground = () => {
+            useEffect(() => {
+                const canvas = document.getElementById('bg-canvas');
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true });
+                
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Optimize for mobile
+
+                // Globe
+                const geometry = new THREE.IcosahedronGeometry(8, 2); // Slightly smaller for mobile
+                const material = new THREE.MeshBasicMaterial({ 
+                    color: 0x004400, 
+                    wireframe: true,
+                    transparent: true,
+                    opacity: 0.2
+                });
+                const globe = new THREE.Mesh(geometry, material);
+                scene.add(globe);
+
+                // Particles
+                const particlesGeometry = new THREE.BufferGeometry();
+                const particlesCount = 400; // Reduced count for mobile performance
+                const posArray = new Float32Array(particlesCount * 3);
+                for(let i = 0; i < particlesCount * 3; i++) {
+                    posArray[i] = (Math.random() - 0.5) * 40;
+                }
+                particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+                const particlesMaterial = new THREE.PointsMaterial({
+                    size: 0.05,
+                    color: 0x00ff41,
+                    transparent: true,
+                    opacity: 0.6
+                });
+                const particlesMesh = new THREE.Points(particlesGeometry, particlesMaterial);
+                scene.add(particlesMesh);
+
+                camera.position.z = 12;
+
+                const animate = () => {
+                    requestAnimationFrame(animate);
+                    globe.rotation.y += 0.002;
+                    globe.rotation.x += 0.001;
+                    particlesMesh.rotation.y -= 0.0005;
+                    renderer.render(scene, camera);
+                };
+                animate();
+
+                const handleResize = () => {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                };
+                window.addEventListener('resize', handleResize);
+                return () => window.removeEventListener('resize', handleResize);
+            }, []);
+            return null;
+        };
+
+        // --- Main App Component ---
+        const App = () => {
+            const [myPeerId, setMyPeerId] = useState(null);
+            const [targetPeerId, setTargetPeerId] = useState('');
+            const [conn, setConn] = useState(null);
+            const [status, setStatus] = useState('INITIALIZING NEURAL NET...');
+            const [messages, setMessages] = useState([]);
+            const [inputMsg, setInputMsg] = useState('');
+            const [mobileView, setMobileView] = useState('connect'); // 'connect' or 'chat'
+            const [isRecording, setIsRecording] = useState(false);
+            
+            const peerRef = useRef(null);
+            const messagesEndRef = useRef(null);
+            const mediaRecorderRef = useRef(null);
+            const audioChunksRef = useRef([]);
+
+            // Audio for effects
+            const playSound = (type) => {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                const now = ctx.currentTime;
+                if (type === 'send') {
+                    osc.frequency.setValueAtTime(800, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                    osc.start(now);
+                    osc.stop(now + 0.1);
+                } else if (type === 'receive') {
+                    osc.frequency.setValueAtTime(1200, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                } else if (type === 'connect') {
+                    osc.frequency.setValueAtTime(400, now);
+                    osc.frequency.exponentialRampToValueAtTime(1000, now + 0.5);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                    osc.start(now);
+                    osc.stop(now + 0.5);
+                }
+            };
+
+            useEffect(() => {
+                const peer = new Peer(undefined, {
+                    debug: 1,
+                    config: { 'iceServers': [ { url: 'stun:stun.l.google.com:19302' } ] }
+                });
+
+                peer.on('open', (id) => {
+                    setMyPeerId(id);
+                    setStatus('SYSTEM ONLINE. WAITING FOR LINK...');
+                });
+
+                peer.on('connection', (connection) => {
+                    setupConnection(connection);
+                    setStatus(`INBOUND LINK: ${connection.peer.substr(0,5)}...`);
+                    playSound('connect');
+                    setMobileView('chat'); // Auto switch to chat on mobile
+                });
+
+                peer.on('error', (err) => {
+                    console.error(err);
+                    setStatus(`ERROR: ${err.type}`);
+                });
+
+                peerRef.current = peer;
+                return () => { if (peerRef.current) peerRef.current.destroy(); };
+            }, []);
+
+            useEffect(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, [messages, mobileView]);
+
+            const setupConnection = (connection) => {
+                connection.on('open', () => {
+                    setConn(connection);
+                    setStatus('SECURE ENCRYPTED CHANNEL ESTABLISHED.');
+                    playSound('connect');
+                    setMobileView('chat');
+                });
+
+                connection.on('data', (data) => {
+                    handleIncomingData(data);
+                });
+
+                connection.on('close', () => {
+                    setConn(null);
+                    setStatus('LINK SEVERED. TARGET LOST.');
+                });
+            };
+
+            const handleIncomingData = (data) => {
+                setMessages(prev => [...prev, { ...data, self: false }]);
+                playSound('receive');
+            };
+
+            const connectToPeer = () => {
+                if (!targetPeerId || !peerRef.current) return;
+                setStatus(`INITIATING HANDSHAKE...`);
+                const connection = peerRef.current.connect(targetPeerId);
+                setupConnection(connection);
+            };
+
+            const sendMessage = (e) => {
+                e && e.preventDefault();
+                if (!inputMsg.trim() || !conn) return;
+
+                const msgData = {
+                    type: 'text',
+                    content: inputMsg,
+                    timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+                };
+
+                conn.send(msgData);
+                setMessages(prev => [...prev, { ...msgData, self: true }]);
+                setInputMsg('');
+                playSound('send');
+            };
+
+            // --- File Handling (Universal) ---
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file || !conn) return;
+
+                // Size limit check (approx 5MB to be safe with Base64 in browser memory)
+                if (file.size > 5 * 1024 * 1024) {
+                    alert("WARNING: FILE TOO LARGE. LIMIT 5MB FOR STABILITY.");
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const fileType = file.type.split('/')[0]; // 'image', 'audio', 'video', or 'application'
+                    
+                    const msgData = {
+                        type: 'file',
+                        fileType: fileType, 
+                        mimeType: file.type,
+                        content: event.target.result, // Base64
+                        fileName: file.name,
+                        fileSize: (file.size / 1024).toFixed(1) + 'KB',
+                        timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+                    };
+                    conn.send(msgData);
+                    setMessages(prev => [...prev, { ...msgData, self: true }]);
+                    playSound('send');
+                };
+                reader.readAsDataURL(file);
+            };
+
+            // --- Voice Recording ---
+            const toggleRecording = async () => {
+                if (isRecording) {
+                    // Stop recording
+                    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                        mediaRecorderRef.current.stop();
+                    }
+                    setIsRecording(false);
+                } else {
+                    // Start recording
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        const mediaRecorder = new MediaRecorder(stream);
+                        mediaRecorderRef.current = mediaRecorder;
+                        audioChunksRef.current = [];
+
+                        mediaRecorder.ondataavailable = (event) => {
+                            audioChunksRef.current.push(event.data);
+                        };
+
+                        mediaRecorder.onstop = () => {
+                            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                            const reader = new FileReader();
+                            reader.readAsDataURL(audioBlob);
+                            reader.onloadend = () => {
+                                const base64Audio = reader.result;
+                                const msgData = {
+                                    type: 'voice',
+                                    content: base64Audio,
+                                    timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+                                };
+                                if (conn) {
+                                    conn.send(msgData);
+                                    setMessages(prev => [...prev, { ...msgData, self: true }]);
+                                    playSound('send');
+                                }
+                            };
+                            // Stop tracks
+                            stream.getTracks().forEach(track => track.stop());
+                        };
+
+                        mediaRecorder.start();
+                        setIsRecording(true);
+                    } catch (err) {
+                        console.error("Mic error:", err);
+                        alert("MICROPHONE ACCESS DENIED OR NOT AVAILABLE.");
+                    }
+                }
+            };
+
+            const copyId = () => {
+                const textArea = document.createElement("textarea");
+                textArea.value = myPeerId;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-9999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                
+                try {
+                    document.execCommand('copy');
+                    alert("IDENTITY COPIED");
+                } catch (err) {
+                    alert("COPY FAILED");
+                }
+                document.body.removeChild(textArea);
+            };
+
+            // Icons
+            const IconSend = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>;
+            const IconPaperclip = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>;
+            const IconMic = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>;
+            const IconFile = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>;
+            const IconCopy = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>;
+
+            return (
+                <div className="flex h-[100dvh] w-full items-center justify-center p-2 md:p-4 relative z-20">
+                    <ThreeBackground />
+                    <div className="scan-line"></div>
+                    
+                    <div className="w-full max-w-5xl h-full md:h-[90vh] flex flex-col md:flex-row gap-4 sci-fi-border p-2 md:p-4 bg-black/80">
+                        
+                        {/* Mobile Tabs */}
+                        <div className="md:hidden flex w-full gap-2 mb-2 shrink-0">
+                            <button 
+                                onClick={() => setMobileView('connect')}
+                                className={`flex-1 p-2 text-sm border border-green-500 uppercase ${mobileView === 'connect' ? 'tab-active' : 'bg-black/50 text-green-500'}`}
+                            >
+                                Connection
+                            </button>
+                            <button 
+                                onClick={() => setMobileView('chat')}
+                                className={`flex-1 p-2 text-sm border border-green-500 uppercase ${mobileView === 'chat' ? 'tab-active' : 'bg-black/50 text-green-500'}`}
+                            >
+                                Comms
+                            </button>
+                        </div>
+
+                        {/* Connection Panel */}
+                        <div className={`${mobileView === 'connect' ? 'flex' : 'hidden'} md:flex w-full md:w-1/3 flex-col gap-4 border-r border-green-900/50 pr-0 md:pr-4 h-full`}>
+                            <div className="p-3 border border-green-900 bg-black/50 shrink-0">
+                                <h2 className="text-lg font-bold mb-2 tracking-widest text-green-400 border-b border-green-900 pb-2">IDENTITY NODE</h2>
+                                <div className="text-[10px] text-green-600 mb-1">YOUR ACCESS CODE</div>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <code className="flex-1 bg-green-900/20 p-2 text-xs md:text-sm break-all border border-green-800 text-green-300 font-mono">
+                                        {myPeerId || 'GENERATING...'}
+                                    </code>
+                                    <button onClick={copyId} className="sci-fi-btn p-2 shrink-0" title="Copy ID">
+                                        <IconCopy />
+                                    </button>
+                                </div>
+                                <div className="text-[10px] text-green-700 uppercase">
+                                    Status: <span className={myPeerId ? "text-green-400" : "text-yellow-500"}>{myPeerId ? "ACTIVE" : "OFFLINE"}</span>
+                                </div>
+                            </div>
+
+                            <div className="p-3 border border-green-900 bg-black/50 flex-1 flex flex-col min-h-0 overflow-y-auto">
+                                <h2 className="text-lg font-bold mb-4 tracking-widest text-green-400 border-b border-green-900 pb-2">TARGET LINK</h2>
+                                
+                                {!conn ? (
+                                    <div className="flex flex-col gap-3">
+                                        <div className="text-[10px] text-green-600">ENTER TARGET NODE ID</div>
+                                        <input 
+                                            type="text" 
+                                            value={targetPeerId}
+                                            onChange={(e) => setTargetPeerId(e.target.value)}
+                                            placeholder="Paste code..."
+                                            className="sci-fi-input p-3 w-full text-sm rounded-none"
+                                        />
+                                        <button 
+                                            onClick={connectToPeer}
+                                            disabled={!targetPeerId || !myPeerId}
+                                            className="sci-fi-btn py-3 font-bold tracking-widest mt-2"
+                                        >
+                                            INITIALIZE LINK
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col gap-2 items-center justify-center flex-1 text-center">
+                                        <div className="w-12 h-12 border-2 border-green-500 rounded-full flex items-center justify-center animate-pulse">
+                                            <div className="w-8 h-8 bg-green-500/20 rounded-full"></div>
+                                        </div>
+                                        <div className="font-bold text-green-400 mt-2">LINKED SECURELY</div>
+                                        <div className="text-[10px] text-green-600 font-mono break-all px-2">{conn.peer}</div>
+                                        <button 
+                                            onClick={() => {conn.close(); setConn(null);}}
+                                            className="mt-4 text-[10px] text-red-500 hover:text-red-400 border border-red-900 hover:border-red-500 px-4 py-2 uppercase bg-transparent transition-colors"
+                                        >
+                                            Sever Connection
+                                        </button>
+                                    </div>
+                                )}
+
+                                <div className="mt-auto pt-4 text-[9px] text-green-800 font-mono">
+                                    <p>PROTOCOL: WEBRTC P2P</p>
+                                    <p>ENCRYPTION: AES-128 GCM</p>
+                                    <p>SERVER: NONE (DIRECT)</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Chat Panel */}
+                        <div className={`${mobileView === 'chat' ? 'flex' : 'hidden'} md:flex flex-1 flex-col relative bg-black/20 h-full min-h-0`}>
+                            {/* Header */}
+                            <div className="flex justify-between items-center p-2 border-b border-green-900 bg-green-900/10 shrink-0">
+                                <div className="font-bold text-green-400 tracking-wider text-xs md:text-sm flex items-center gap-2 truncate">
+                                    <span className={`w-2 h-2 shrink-0 rounded-full ${conn ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+                                    {status}
+                                </div>
+                                <div className="text-[10px] text-green-700 font-mono hidden sm:block">ENCRYPTED // V.2.1.0</div>
+                            </div>
+
+                            {/* Messages Area */}
+                            <div className="flex-1 overflow-y-auto p-2 md:p-4 space-y-3 font-sans relative">
+                                {messages.length === 0 && (
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-20 pointer-events-none">
+                                        <div className="text-center">
+                                            <div className="text-4xl md:text-6xl mb-2">NO DATA</div>
+                                            <div className="text-xs tracking-widest">WAITING FOR TRANSMISSION</div>
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {messages.map((msg, idx) => (
+                                    <div key={idx} className={`flex ${msg.self ? 'justify-end' : 'justify-start'}`}>
+                                        <div className={`message-bubble p-2 md:p-3 border ${msg.self ? 'border-green-500 bg-green-900/20 text-right rounded-l-lg rounded-br-lg' : 'border-cyan-500 bg-cyan-900/20 text-left rounded-r-lg rounded-bl-lg'}`}>
+                                            <div className={`text-[9px] mb-1 font-mono ${msg.self ? 'text-green-600' : 'text-cyan-600'}`}>
+                                                {msg.self ? 'YOU' : 'REMOTE'} // {msg.timestamp}
+                                            </div>
+                                            
+                                            {/* TEXT MESSAGE */}
+                                            {msg.type === 'text' && (
+                                                <div className="text-sm font-mono text-white/90 break-words">{msg.content}</div>
+                                            )}
+                                            
+                                            {/* IMAGE / FILE / VOICE RENDERING */}
+                                            {msg.type === 'file' && msg.fileType === 'image' && (
+                                                <div className="mt-1">
+                                                    <img src={msg.content} alt="Transferred" className="max-w-full rounded border border-green-500/50" />
+                                                </div>
+                                            )}
+
+                                            {msg.type === 'voice' && (
+                                                <div className="mt-1 flex items-center gap-2">
+                                                    <audio controls src={msg.content} className="h-8 max-w-[200px]" />
+                                                    <div className="text-[10px] uppercase text-green-500">Voice Note</div>
+                                                </div>
+                                            )}
+
+                                            {(msg.type === 'file' && msg.fileType !== 'image') && (
+                                                <div className="mt-1 p-2 bg-black/40 border border-dashed border-green-500/50 rounded flex items-center gap-3">
+                                                    <div className="p-2 bg-green-900/30 rounded"><IconFile /></div>
+                                                    <div className="text-left overflow-hidden">
+                                                        <div className="text-xs text-green-300 truncate max-w-[150px]">{msg.fileName}</div>
+                                                        <div className="text-[9px] text-green-600">{msg.fileSize}</div>
+                                                    </div>
+                                                    <a href={msg.content} download={msg.fileName} className="ml-auto sci-fi-btn p-1 px-3 text-[10px] h-6">
+                                                        SAVE
+                                                    </a>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                                <div ref={messagesEndRef} />
+                            </div>
+
+                            {/* Input Area */}
+                            <div className="p-2 md:p-3 border-t border-green-900 bg-black/80 shrink-0">
+                                <form onSubmit={sendMessage} className="flex gap-2 items-end">
+                                    {/* Universal File Input */}
+                                    <label className="sci-fi-btn w-10 h-10 md:w-12 md:h-12 flex-shrink-0 flex items-center justify-center rounded-none" title="Send File (Any Type)">
+                                        <input type="file" className="hidden" onChange={handleFileUpload} disabled={!conn} />
+                                        <IconPaperclip />
+                                    </label>
+
+                                    {/* Voice Recorder */}
+                                    <button 
+                                        type="button"
+                                        onClick={toggleRecording}
+                                        disabled={!conn}
+                                        className={`sci-fi-btn w-10 h-10 md:w-12 md:h-12 flex-shrink-0 rounded-none ${isRecording ? 'recording-pulse' : ''}`}
+                                        title={isRecording ? "Stop & Send" : "Record Voice"}
+                                    >
+                                        <IconMic />
+                                    </button>
+
+                                    {/* Text Input */}
+                                    <div className="flex-1 relative">
+                                        {isRecording && (
+                                            <div className="absolute inset-0 bg-red-900/80 flex items-center justify-center text-red-200 text-xs tracking-widest animate-pulse border border-red-500 z-10 pointer-events-none">
+                                                RECORDING AUDIO...
+                                            </div>
+                                        )}
+                                        <input 
+                                            type="text" 
+                                            value={inputMsg}
+                                            onChange={(e) => setInputMsg(e.target.value)}
+                                            placeholder={conn ? "Message..." : "Waiting..."}
+                                            disabled={!conn || isRecording}
+                                            className="sci-fi-input w-full p-2 md:p-3 h-10 md:h-12 text-sm disabled:opacity-50"
+                                        />
+                                    </div>
+
+                                    {/* Send Button */}
+                                    <button 
+                                        type="submit" 
+                                        disabled={!conn || isRecording}
+                                        className="sci-fi-btn w-12 h-10 md:w-auto md:h-12 md:px-6 font-bold flex items-center justify-center gap-2 rounded-none"
+                                    >
+                                        <span className="hidden md:inline">SEND</span> <IconSend />
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
